@@ -1,8 +1,6 @@
 const { Firestore } = require('@google-cloud/firestore');
-const path = require('path');
 
-const firestore = new Firestore({
-  projectId: 'ta-adit-final',
-  keyFilename: path.resolve(__dirname, '../../service-account.json'),
-});
+// Gunakan default konfigurasi — Cloud Run akan baca dari GOOGLE_APPLICATION_CREDENTIALS
+const firestore = new Firestore();
+
 module.exports = { db: firestore };
