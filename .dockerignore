@@ -1,5 +1,5 @@
-service-account.json
 node_modules
-.git
-*.log
 .env
+*.log
+.git
+service-account.json
