@@ -1,7 +1,12 @@
 FROM node:18.16.1
+
 WORKDIR /app
-ENV PORT 8080
-COPY . .
+
+COPY package*.json ./
 RUN npm install
+
+COPY . .
+
 EXPOSE 8080
-CMD [ "npm", "run", "start"]
+
+CMD ["npm", "run", "start"]
