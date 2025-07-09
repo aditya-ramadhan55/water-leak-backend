@@ -1,62 +1,60 @@
 const { db } = require('../services/firestore');
 const axios = require('axios');
 
-// Cek server
+// GET /
 exports.getRootHandler = (req, res) => {
   res.status(200).send("Service Running");
 };
 
-// POST /sensor
+// POST /sensor — dari ESP32
 exports.addSensorData = async (req, res) => {
   try {
     const data = req.body;
 
-    // Simpan data awal ke Firestore (sensor_data)
-    const docRef = await db.collection('sensor_data').add(data);
+    // 1. Simpan data awal ke Firestore (sensor_data)
+    const docRef = await db.collection("sensor_data").add(data);
 
-    // Kirim ke Model 1: Leak Detection
+    // 2. Kirim ke Model 1: Leak Detection
     const model1Response = await axios.post(
       "https://leak-detection-api-64095320742.asia-southeast2.run.app/predict",
       data
     );
     const leak_detected = model1Response.data.leak_detected;
+
+    // 3. Inisialisasi updateData dengan hasil dari Model 1
     const updateData = { leak_detected };
 
-    // Jika terdeteksi kebocoran, kirim ke Model 2
+    // 4. Jika terdeteksi kebocoran, kirim ke Model 2: Leak Location
     if (leak_detected === 1) {
+      const model2Payload = { ...data, leak_detected };
       const model2Response = await axios.post(
         "https://leak-location-api-64095320742.asia-southeast2.run.app/predict",
-        data
+        model2Payload
       );
-      if (model2Response.data.leak_location !== undefined) {
-        updateData.leak_location = model2Response.data.leak_location;
-      }
+      updateData.leak_location = model2Response.data.leak_location;
     }
 
-    // Update dokumen yang sama di Firestore
+    // 5. Update dokumen Firestore dengan hasil model
     await docRef.update(updateData);
 
     res.status(201).json({
       id: docRef.id,
-      status: 'success',
-      leak_detected,
-      ...(updateData.leak_location !== undefined && {
-        leak_location: updateData.leak_location,
-      }),
-      message: 'Data berhasil disimpan dan diproses oleh model.'
+      status: "success",
+      ...updateData,
+      message: "Data berhasil disimpan dan diproses oleh model."
     });
 
   } catch (err) {
     console.error("[ERROR addSensorData]", err.message);
-    res.status(500).json({ status: 'error', message: err.message });
+    res.status(500).json({ status: "error", message: err.message });
   }
 };
 
-// GET /api/sensor
+// GET /api — untuk frontend
 exports.getSensorData = async (req, res) => {
   try {
     const snapshot = await db
-      .collection('sensor_data')  // 🔧 fix here
+      .collection('sensor_data')
       .orderBy('timestamp', 'desc')
       .limit(100)
       .get();
