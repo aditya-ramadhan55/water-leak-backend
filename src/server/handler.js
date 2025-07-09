@@ -11,7 +11,7 @@ exports.addSensorData = async (req, res) => {
   try {
     const data = req.body;
 
-    // Simpan data awal ke Firestore
+    // Simpan data awal ke Firestore (sensor_data)
     const docRef = await db.collection('sensor_data').add(data);
 
     // Kirim ke Model 1: Leak Detection
@@ -20,20 +20,20 @@ exports.addSensorData = async (req, res) => {
       data
     );
     const leak_detected = model1Response.data.leak_detected;
-
-    // Inisialisasi updateData
     const updateData = { leak_detected };
 
-    // Jika terdeteksi kebocoran, kirim ke Model 2: Leak Location
+    // Jika terdeteksi kebocoran, kirim ke Model 2
     if (leak_detected === 1) {
       const model2Response = await axios.post(
         "https://leak-location-api-64095320742.asia-southeast2.run.app/predict",
         data
       );
-      updateData.leak_location = model2Response.data.leak_location;
+      if (model2Response.data.leak_location !== undefined) {
+        updateData.leak_location = model2Response.data.leak_location;
+      }
     }
 
-    // Update dokumen Firestore yang sama
+    // Update dokumen yang sama di Firestore
     await docRef.update(updateData);
 
     res.status(201).json({
@@ -47,16 +47,16 @@ exports.addSensorData = async (req, res) => {
     });
 
   } catch (err) {
-    console.error(err);
+    console.error("[ERROR addSensorData]", err.message);
     res.status(500).json({ status: 'error', message: err.message });
   }
 };
 
-// GET /api/sensor — ambil data untuk frontend
+// GET /api/sensor
 exports.getSensorData = async (req, res) => {
   try {
     const snapshot = await db
-      .collection('water_leak_data')
+      .collection('sensor_data')  // 🔧 fix here
       .orderBy('timestamp', 'desc')
       .limit(100)
       .get();
