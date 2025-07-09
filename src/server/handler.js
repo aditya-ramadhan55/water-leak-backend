@@ -1,35 +1,55 @@
-// src/server/handler.js
 const { db } = require('../services/firestore');
+const axios = require('axios');
 
-// Tes Server
+// Cek server
 exports.getRootHandler = (req, res) => {
-    res.status(200).send("Service Running");
+  res.status(200).send("Service Running");
 };
 
-// POST /sensor
+// POST /api/sensor — data dari ESP32, simpan ke Firestore dan kirim ke model
 exports.addSensorData = async (req, res) => {
-    try {
-        const data = req.body;
-        // Simpan ke koleksi "water_leak_data"
-        const ref = await db.collection('water_leak_data').add(data);
-        res.status(201).json({ id: ref.id, status: 'success', message: 'Data berhasil disimpan.' });
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ status: 'error', message: err.message });
-    }
+  try {
+    const data = req.body;
+
+    // Simpan data awal ke Firestore
+    const docRef = await db.collection("sensor_data").add(data);
+
+    // Kirim ke model deteksi kebocoran (Model 1)
+    const modelResponse = await axios.post("https://leak-detection-api-64095320742.asia-southeast2.run.app/predict", data);
+    const { leak_detected } = modelResponse.data;
+
+    // Update dokumen dengan hasil prediksi
+    await docRef.update({ leak_detected });
+
+    res.status(201).json({
+      id: docRef.id,
+      status: "success",
+      leak_detected,
+      message: "Data berhasil disimpan dan diproses oleh model.",
+    });
+  } catch (err) {
+    console.error("[ERROR addSensorData]", err.message);
+    res.status(500).json({ status: "error", message: err.message });
+  }
 };
 
-// GET /sensor
+// GET /api/sensor — ambil data untuk frontend
 exports.getSensorData = async (req, res) => {
-    try {
-        const snapshot = await db.collection('water_leak_data').orderBy('timestamp', 'desc').limit(100).get();
-        const result = [];
-        snapshot.forEach(doc => {
-            result.push({ id: doc.id, ...doc.data() });
-        });
-        res.status(200).json(result);
-    } catch (err) {
-        console.error(err);
-        res.status(500).json({ status: 'error', message: err.message });
-    }
+  try {
+    const snapshot = await db
+      .collection('water_leak_data')
+      .orderBy('timestamp', 'desc')
+      .limit(100)
+      .get();
+
+    const result = [];
+    snapshot.forEach(doc => {
+      result.push({ id: doc.id, ...doc.data() });
+    });
+
+    res.status(200).json(result);
+  } catch (err) {
+    console.error("[ERROR getSensorData]", err.message);
+    res.status(500).json({ status: 'error', message: err.message });
+  }
 };
