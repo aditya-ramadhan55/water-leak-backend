@@ -1,31 +1,48 @@
+const { db } = require('../services/firestore');
+const axios = require('axios');
+
+// POST /sensor
 exports.addSensorData = async (req, res) => {
   try {
     const data = req.body;
 
     // Simpan data awal ke Firestore
-    const docRef = await db.collection("water_leak_data").add(data);
+    const docRef = await db.collection('sensor_data').add(data);
 
-    // Kirim ke model deteksi kebocoran
-    const modelResponse = await axios.post(
+    // Kirim ke Model 1: Leak Detection
+    const model1Response = await axios.post(
       "https://leak-detection-api-64095320742.asia-southeast2.run.app/predict",
       data
     );
+    const leak_detected = model1Response.data.leak_detected;
 
-    const { leak_detected } = modelResponse.data;
+    // Inisialisasi updateData
+    const updateData = { leak_detected };
 
-    // Hanya update jika leak_detected tidak undefined
-    if (typeof leak_detected !== "undefined") {
-      await docRef.update({ leak_detected });
+    // Jika terdeteksi kebocoran, kirim ke Model 2: Leak Location
+    if (leak_detected === 1) {
+      const model2Response = await axios.post(
+        "https://leak-location-api-64095320742.asia-southeast2.run.app/predict",
+        data
+      );
+      updateData.leak_location = model2Response.data.leak_location;
     }
+
+    // Update dokumen Firestore yang sama
+    await docRef.update(updateData);
 
     res.status(201).json({
       id: docRef.id,
-      status: "success",
+      status: 'success',
       leak_detected,
-      message: "Data berhasil disimpan dan diproses oleh model.",
+      ...(updateData.leak_location !== undefined && {
+        leak_location: updateData.leak_location,
+      }),
+      message: 'Data berhasil disimpan dan diproses oleh model.'
     });
+
   } catch (err) {
-    console.error("[ERROR addSensorData]", err.message);
-    res.status(500).json({ status: "error", message: err.message });
+    console.error(err);
+    res.status(500).json({ status: 'error', message: err.message });
   }
 };
