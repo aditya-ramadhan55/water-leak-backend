@@ -1,4 +1,6 @@
 const { db } = require('../services/firestore');
+const { sendTelegramNotification } = require('../services/telegram');
+
 const axios = require('axios');
 
 // GET /
@@ -36,6 +38,12 @@ exports.addSensorData = async (req, res) => {
 
     // 5. Update dokumen Firestore dengan hasil model
     await docRef.update(updateData);
+
+    // 6. Alert saat terjadi kebocoran ke telegram
+    if (updateData.leak_detected === 1) {
+      await sendTelegramNotification(updateData.leak_detected, updateData.leak_location);
+    }
+
 
     res.status(201).json({
       id: docRef.id,
